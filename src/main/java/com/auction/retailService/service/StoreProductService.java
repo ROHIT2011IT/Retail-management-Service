@@ -8,48 +8,46 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.auction.retailService.constant.ErrorMessageConstant;
-import com.auction.retailService.dto.ProductDTO;
-import com.auction.retailService.dto.StoreProductsDTO;
-import com.auction.retailService.entity.Product;
-import com.auction.retailService.entity.StoreProduct;
-import com.auction.retailService.entity.StoreProductBean;
-import com.auction.retailService.entity.StoreProductEmbeddable;
+import com.auction.retailService.constant.ErrorMessage;
+import com.auction.retailService.domain.StoreProductEntity;
+import com.auction.retailService.domain.ProductEntity;
+import com.auction.retailService.domain.StoreProductEmbeddable;
+import com.auction.retailService.dto.Product;
+import com.auction.retailService.dto.StoreProductDescription;
+import com.auction.retailService.dto.StoreProducts;
 import com.auction.retailService.exception.ProductDataException;
 import com.auction.retailService.exception.ProductNotFoundInStoreException;
 import com.auction.retailService.repository.StoreProductRepository;
 
 @Service
 public class StoreProductService {
-	
+
 	@Autowired
-	StoreProductRepository storeProductRepo;
-	
+	private StoreProductRepository storeProductRepo;
+
 	@Autowired
-	ProductService prodService;
-	
-	public StoreProduct updateStoreProduct(StoreProduct storeProduct) {
-		Optional<StoreProduct> storeProd =  storeProductRepo.findById(storeProduct.getStoreProductIdentity());
-		if(storeProd.isPresent())
-		{
-			storeProduct.setQuantity(storeProduct.getQuantity()+storeProd.get().getQuantity());
+	private ProductService prodService;
+
+	public StoreProductEntity updateStoreProduct(StoreProductEntity storeProduct) {
+		Optional<StoreProductEntity> storeProd = storeProductRepo.findById(storeProduct.getStoreProductIdentity());
+		if (storeProd.isPresent()) {
+			storeProduct.setQuantity(storeProduct.getQuantity() + storeProd.get().getQuantity());
 		}
 		return storeProductRepo.save(storeProduct);
 	}
-	
-	public StoreProduct saveStoreProductData(StoreProduct storeProduct) {
-		return storeProductRepo.save(storeProduct);
+
+	public StoreProductEntity saveStoreProductData(StoreProductEntity storeProductEntity) {
+		return storeProductRepo.save(storeProductEntity);
 	}
-	
-	
-	public List<StoreProductBean> getStoreProducts(Long storeId) {
-		List<StoreProduct> storeProducts = storeProductRepo.findByStoreProductIdentityStoreId(storeId);
-		List<StoreProductBean> storeProductList = new ArrayList<StoreProductBean>();
-		for (StoreProduct store_prod : storeProducts) {
-			StoreProductBean bean = new StoreProductBean();
+
+	public List<StoreProductDescription> getStoreProducts(Long storeId) {
+		List<StoreProductEntity> storeProductlist = storeProductRepo.findByStoreProductIdentityStoreId(storeId);
+		List<StoreProductDescription> storeProductList = new ArrayList<StoreProductDescription>();
+		for (StoreProductEntity store_prod : storeProductlist) {
+			StoreProductDescription bean = new StoreProductDescription();
 			bean.setStoreId(store_prod.getStoreProductIdentity().getStoreId());
-			Optional<Product> prod = prodService.getProductById(store_prod.getStoreProductIdentity().getProductId());
-			Product product =  prod.isPresent()?prod.get():new Product();
+			ProductEntity product = prodService.getProductById(store_prod.getStoreProductIdentity().getProductId());
+
 			bean.setProductId(product.getProductId());
 			bean.setProductName(product.getProductName());
 			bean.setProductDescription(product.getDescription());
@@ -62,21 +60,22 @@ public class StoreProductService {
 		return storeProductList;
 	}
 
-	public StoreProductBean getStoreProductById(Long storeId, Long productId) {
-		
-		Optional<StoreProduct> storeProduct =  storeProductRepo.findById(new StoreProductEmbeddable(storeId,productId));
-		StoreProductBean bean = new StoreProductBean();
+	public StoreProductDescription getStoreProductById(Long storeId, Long productId) {
+
+		Optional<StoreProductEntity> storeProduct = storeProductRepo
+				.findById(new StoreProductEmbeddable(storeId, productId));
+		StoreProductDescription bean = new StoreProductDescription();
 		bean.setStoreId(storeId);
-		if(storeProduct.isPresent()) {
-			Optional<Product> product = prodService.getProductById(storeProduct.get().getStoreProductIdentity().getProductId());
-			bean = product.isPresent()?getStoreProductBean(product.get(), bean):bean;
+		if (storeProduct.isPresent()) {
+			ProductEntity product = prodService
+					.getProductById(storeProduct.get().getStoreProductIdentity().getProductId());
+			bean = getStoreProductBean(product, bean);
 			bean.setQuantity(storeProduct.get().getQuantity());
 		}
 		return bean;
 	}
-	
-	
-	private StoreProductBean getStoreProductBean(Product product , StoreProductBean bean){
+
+	private StoreProductDescription getStoreProductBean(ProductEntity product, StoreProductDescription bean) {
 		bean.setProductId(product.getProductId());
 		bean.setProductName(product.getProductName());
 		bean.setProductDescription(product.getDescription());
@@ -87,29 +86,27 @@ public class StoreProductService {
 	}
 
 	@Transactional
-	public StoreProductsDTO addStoreProduct(StoreProductsDTO storeProducts) {
-		List<ProductDTO> products = storeProducts.getProducts();
-		long storeId  = storeProducts.getStoreId();
-		for(ProductDTO product : products) {
-			if(prodService.isProductExist(product.getProductId())) {
-				StoreProduct storeProduct =new StoreProduct();
-				StoreProductEmbeddable identity = new StoreProductEmbeddable(storeId, product.getProductId());
-				storeProduct.setQuantity(product.getQuantity());
-				storeProduct.setStoreProductIdentity(identity);
-				updateStoreProduct(storeProduct);
-			}else {
+	public StoreProducts addStoreProduct(StoreProducts storeProducts) {
+		List<Product> productDtos = storeProducts.getProducts();
+		long storeId = storeProducts.getStoreId();
+		for (Product productDto : productDtos) {
+			if (prodService.isProductExist(productDto.getProductId())) {
+				StoreProductEntity storeProductEntity = new StoreProductEntity();
+				StoreProductEmbeddable identity = new StoreProductEmbeddable(storeId, productDto.getProductId());
+				storeProductEntity.setQuantity(productDto.getQuantity());
+				storeProductEntity.setStoreProductIdentity(identity);
+				updateStoreProduct(storeProductEntity);
+			} else {
 				throw new ProductDataException("Product data is invalid");
 			}
 		}
 		return storeProducts;
 	}
 
-	public StoreProduct getProductQtyByStore(Long storeID, Long productId) {
-		Optional<StoreProduct>storeProduct  =  storeProductRepo.findQuantityByStoreIdAndProductId(storeID, productId);
-		if(storeProduct.isPresent()) {
-			return storeProduct.get();
-		}
-		throw new ProductNotFoundInStoreException(ErrorMessageConstant.PRODUCT_NOT_FOUND_IN_STORE, storeID, productId);
+	public StoreProductEntity getProductQtyByStore(Long storeID, Long productId) {
+
+		return storeProductRepo.findQuantityByStoreIdAndProductId(storeID, productId)
+				.orElseThrow(() -> new ProductNotFoundInStoreException(storeID, productId));
 	}
-	
+
 }

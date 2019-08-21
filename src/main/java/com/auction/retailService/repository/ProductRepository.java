@@ -9,37 +9,29 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.auction.retailService.entity.Product;
+import com.auction.retailService.domain.ProductEntity;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, Long> {
+public interface ProductRepository extends JpaRepository<ProductEntity, Long> {
 
-	/*String FIND_BY_PRODUCT_NAME = " Select * from Product where product_name = :productName";
-	
-	String DELETE_BY_PRODUCT_NAME = " delete from Product where product_name = :productName";
-	
-	@Query(value = FIND_BY_PRODUCT_NAME, nativeQuery = true) 
-	public List<Product> findByProductName(@Param ("productName") String productName);
+	final String DELETE_BY_PRODUCT_ID = " update ProductEntity set is_Deleted = true where product_id = :productId";
 
-	@Modifying
-	@Query (value = DELETE_BY_PRODUCT_NAME)
-	public void deleteByProductName(@Param ("productName") String productName);*/
-	
-	String DELETE_BY_PRODUCT_ID = " update Product set is_Deleted = 1 where product_id = :productId";
-	
 	@Modifying(clearAutomatically = true)
 	@Query(value = DELETE_BY_PRODUCT_ID)
-	public int softDeleteById(@Param("productId") Long id); 
+	public int softDeleteById(@Param("productId") Long id);
 
-	public List<Product> findBySkuNumber(String skuNumber);
+	public List<ProductEntity> findBySkuNumber(String skuNumber);
 
-	public Optional<List<Product>> findByProductName(String name);
+	public Optional<List<ProductEntity>> findByProductName(String name);
 
-	public void deleteByProductName(String name);
-
-
-	public Optional<Product> findByProductNameAndCompanyNameAndSkuNumber(String productName, String companyName,
+	public Optional<ProductEntity> findByProductNameAndCompanyNameAndSkuNumber(String productName, String companyName,
 			String skuNumber);
 
+	public Optional<List<ProductEntity>> findByProductNameIgnoreCase(String upperCase);
+
+	public void deleteByProductNameIgnoreCase(String name);
+
+	public Optional<ProductEntity> findByProductNameIgnoreCaseAndCompanyNameIgnoreCaseAndSkuNumber(String productName,
+			String companyName, String skuNumber);
 
 }

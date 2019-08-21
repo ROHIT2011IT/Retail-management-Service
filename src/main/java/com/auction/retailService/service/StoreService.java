@@ -1,18 +1,21 @@
 package com.auction.retailService.service;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import javax.validation.constraints.NotNull;
 
+import com.auction.retailService.constant.ErrorMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import com.auction.retailService.constant.ErrorMessageConstant;
-import com.auction.retailService.constant.RoleConstant;
-import com.auction.retailService.entity.Store;
+import com.auction.retailService.constant.Role;
+import com.auction.retailService.domain.StoreEntity;
 import com.auction.retailService.exception.StoreAlreadyExistException;
 import com.auction.retailService.exception.StoreNotFoundException;
 import com.auction.retailService.exception.UserUnAuthorizedException;
@@ -22,101 +25,92 @@ import com.auction.retailService.repository.StoreRepository;
 @Transactional
 @Service
 public class StoreService {
-	
+
 	@Autowired
-	StoreRepository storeRepository;
-	
+	private StoreRepository storeRepository;
+
 	@Autowired
-	StoreProductRepository storePrdouctrepository;
-	
+	private StoreProductRepository storePrdouctrepository;
+
 	@Autowired
-	UserService userService;
-	
-	/*public Store addStore(Store store) {
-		Optional<Store> store1 = storeRepository.findByStoreName(store.getStoreName());
-		if(!store1.isPresent()) {
-			return storeRepository.save(store);
-		}
-		throw new StoreAlreadyExistException("Store is already exist");
-	}*/
-	
-	public Store addStore(Long userId, Store store) {
-		if(userService.getUserRole(userId) == RoleConstant.RETAIL_ADMIN) {
+	private UserService userService;
+
+	public ResponseEntity<StoreEntity> addStore(Long userId, StoreEntity store) {
+		if (userService.getUserRole(userId) == Role.RETAIL_ADMIN) {
 			store.setStoreID(null);
 			store.setCreatedBy(userId);
-			store.setCreatedDate(Instant.now()+"");
-			store.setStoreName(store.getStoreName().toUpperCase());
-			Optional<Store> store1 = storeRepository.findByStoreName(store.getStoreName());
-			if(!store1.isPresent()) {
-				return storeRepository.save(store);
+			store.setCreatedDate(Instant.now().toString());
+			Optional<StoreEntity> store1 = storeRepository.findByStoreNameIgnoreCase(store.getStoreName());
+			if (!store1.isPresent()) {
+				store = storeRepository.save(store);
+				URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{storeId}")
+						.buildAndExpand(store.getStoreID()).toUri();
+				return ResponseEntity.created(location).build();
 			}
-			throw new StoreAlreadyExistException(ErrorMessageConstant.STORE_ALREDAY_EXIST);
-			
-		}else
-		{
-			throw new UserUnAuthorizedException(ErrorMessageConstant.USER_UNAUTHORIZED_EXCEPTION);
+			throw new StoreAlreadyExistException(ErrorMessage.STORE_ALREDAY_EXIST);
+
+		} else {
+			throw new UserUnAuthorizedException(ErrorMessage.USER_UNAUTHORIZED_EXCEPTION);
 		}
 	}
-	
-	
 
-	public List<Store> getStores() {
+	public List<StoreEntity> getStores() {
 		return storeRepository.findAll();
 	}
 
-	public Optional<Store> getStoreById(Long storeId) {
-		if(storeId!=null) {
-			Optional<Store> stores = storeRepository.findById(storeId);
-			if(stores.isPresent()) {
+	public Optional<StoreEntity> getStoreById(Long storeId) {
+		if (storeId != null) {
+			Optional<StoreEntity> store = storeRepository.findById(storeId);
+			if (store.isPresent()) {
 				return storeRepository.findById(storeId);
 			}
 		}
-		throw new StoreNotFoundException("by storeID: "+storeId);
+		throw new StoreNotFoundException("by storeID: " + storeId);
 	}
 
 	@Transactional
 	public void deleteStoreById(Long storeId) {
 		boolean isStoreexist = false;
-		if(storeId != null) {
-			Optional<Store> store = storeRepository.findById(storeId);
-			if(store.isPresent()) {
+		if (storeId != null) {
+			Optional<StoreEntity> store = storeRepository.findById(storeId);
+			if (store.isPresent()) {
 				isStoreexist = true;
-				storePrdouctrepository.deleteByStoreProductIdentityStoreId(storeId);		
+				storePrdouctrepository.deleteByStoreProductIdentityStoreId(storeId);
 				storeRepository.deleteById(storeId);
 			}
-		}if(!isStoreexist) {
-			throw new StoreNotFoundException("by storeID: "+storeId);
+		}
+		if (!isStoreexist) {
+			throw new StoreNotFoundException(storeId.toString());
 		}
 	}
 
 	public boolean isStoreExist(Long storeId) {
-		System.out.println("StoreId: "+storeId);
-		Optional<Store> store = storeRepository.findById(storeId);
+		System.out.println("StoreId: " + storeId);
+		Optional<StoreEntity> store = storeRepository.findById(storeId);
 		if (store.isPresent()) {
 			return true;
 		}
-		throw new StoreNotFoundException("by storeID: "+storeId);
+		throw new StoreNotFoundException(storeId.toString());
 	}
 
-	public Optional<Store> getStoreByName(@NotNull String storeName) {
-		Optional<Store> store = storeRepository.findByStoreName(storeName.toUpperCase());
-		if(store.isPresent()) {
+	public Optional<StoreEntity> getStoreByName(@NotNull String storeName) {
+		Optional<StoreEntity> store = storeRepository.findByStoreNameIgnoreCase(storeName);
+		if (store.isPresent()) {
 			return store;
 		}
-		throw new StoreNotFoundException("by storeName: "+storeName);
+		throw new StoreNotFoundException(storeName);
 	}
 
-
-
 	public void deleteStoreByStoreName(String storeName) {
-		
-		Optional<Store> store = storeRepository.findByStoreName(storeName.toUpperCase());
-		if(store.isPresent()) {
-			storeRepository.deleteByStoreName(storeName.toUpperCase());
-		}else {
-			throw new StoreNotFoundException("by storeName: "+storeName);
+
+		Optional<StoreEntity> store = storeRepository.findByStoreNameIgnoreCase(storeName);
+		if (store.isPresent()) {
+			storeRepository.deleteByStoreNameIgnoreCase(storeName);
+		} else {
+			throw new StoreNotFoundException("by storeName: " + storeName);
+
 		}
-		
+
 	}
 
 }

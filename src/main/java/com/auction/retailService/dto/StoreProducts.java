@@ -1,24 +1,25 @@
 package com.auction.retailService.dto;
 
 import java.io.Serializable;
+import java.util.List;
+
+import javax.validation.constraints.NotNull;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Data
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderPlacedDTO implements Serializable{
+public class StoreProducts implements Serializable {
 
 	private static final long serialVersionUID = 1L;
-	
-	private Long orderId;
-	
-	private String status;
+
+	@NotNull
+	private Long storeId;
+
+	@NotNull
+	List<Product> products;
 
 }

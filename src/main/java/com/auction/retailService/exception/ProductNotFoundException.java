@@ -1,17 +1,16 @@
 package com.auction.retailService.exception;
 
+import com.auction.retailService.constant.ErrorMessage;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-import com.auction.retailService.constant.ErrorMessageConstant;
-
-@ResponseStatus (value = HttpStatus.PRECONDITION_FAILED , reason = ErrorMessageConstant.PRODUCT_NOT_FPOUND)
-public class ProductNotFoundException extends RuntimeException{
+@ResponseStatus(value = HttpStatus.PRECONDITION_FAILED, reason = ErrorMessage.PRODUCT_NOT_FOUND)
+public class ProductNotFoundException extends RuntimeException {
 
 	private static final long serialVersionUID = 1L;
-	
+
 	public ProductNotFoundException(String message) {
-		super("Product not found +"+message);
+		super(String.format(ErrorMessage.PRODUCT_NOT_FOUND, message));
 	}
 
 }

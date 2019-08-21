@@ -1,5 +1,6 @@
 package com.auction.retailService.service;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -7,195 +8,180 @@ import java.util.Optional;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 
+import com.auction.retailService.constant.ErrorMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import com.auction.retailService.constant.ErrorMessageConstant;
-import com.auction.retailService.constant.RoleConstant;
-import com.auction.retailService.entity.Role;
-import com.auction.retailService.entity.Store;
-import com.auction.retailService.entity.User;
+import com.auction.retailService.constant.Role;
+import com.auction.retailService.domain.UserEntity;
 import com.auction.retailService.exception.RoleException;
-import com.auction.retailService.exception.StoreNotFoundException;
 import com.auction.retailService.exception.UserAlreadyExistException;
 import com.auction.retailService.exception.UserDataException;
 import com.auction.retailService.exception.UserNotExistToPerformOperationException;
 import com.auction.retailService.exception.UserNotFoundException;
 import com.auction.retailService.exception.UserUnAuthorizedException;
-import com.auction.retailService.repository.RoleRepository;
-import com.auction.retailService.repository.StoreRepository;
 import com.auction.retailService.repository.UserRepository;
-
 
 @Service
 public class UserService {
 
 	@Autowired
-	UserRepository userRepo;
-	
+	private UserRepository userRepo;
+
 	@Autowired
-	RoleRepository roleRepo;
-	
-	@Autowired
-	StoreRepository storeRepository;
-	
-	@Autowired
-	StoreService storeService;
-	
-	public User addUser(Long userId, User user) {
-		user.setEmailId(user.getEmailId().toUpperCase());
+	private StoreService storeService;
+
+	public ResponseEntity<UserEntity> addUser(Long userId, UserEntity user) {
 		user.setUserId(null);
-		user.setAddedDate(Instant.now()+"");
+		user.setAddedDate(Instant.now().toString());
 		int roleId = user.getRoleId();
-		
-		switch(roleId) {
-		case RoleConstant.CUSTOMER :
+
+		switch (roleId) {
+		case Role.CUSTOMER:
 			user.setStoreId(null);
 			break;
-		case RoleConstant.RETAIL_ADMIN :
-			if(isUserExist(userId)){
-				if(userId!=null && getUserRole(userId) == RoleConstant.RETAIL_ADMIN) {
+		case Role.RETAIL_ADMIN:
+			if (isUserExist(userId)) {
+				if (userId != null && getUserRole(userId) == Role.RETAIL_ADMIN) {
 					user.setAddedBy(userId);
-					user.setAddedDate(Instant.now()+"");
 					user.setStoreId(null);
 					break;
-				}else {
-					throw new UserUnAuthorizedException(ErrorMessageConstant.USER_UNAUTHORIZED_EXCEPTION);
-				}	
+				} else {
+					throw new UserUnAuthorizedException(ErrorMessage.USER_UNAUTHORIZED_EXCEPTION);
+				}
+			} else {
+				throw new UserNotExistToPerformOperationException(ErrorMessage.USER_NOT_EXIST_FOR_OPERATION);
 			}
-			else {
-				throw new UserNotExistToPerformOperationException(ErrorMessageConstant.USER_NOT_EXIST_FOR_OPERATION);
-			}
-		case RoleConstant.STORE_ADMIN:
-			if(isUserExist(userId)) {
-				if(userId !=null && ((getUserRole(userId) == RoleConstant.RETAIL_ADMIN) || 
-						(getUserRole(userId) == RoleConstant.STORE_ADMIN)) 
+		case Role.STORE_ADMIN:
+			if (isUserExist(userId)) {
+				if (userId != null
+						&& ((getUserRole(userId) == Role.RETAIL_ADMIN) || (getUserRole(userId) == Role.STORE_ADMIN))
 						&& storeService.isStoreExist(user.getStoreId())) {
 					user.setAddedBy(userId);
-					user.setAddedDate(Instant.now()+"");
 					break;
-				}else {
-					throw new UserUnAuthorizedException(ErrorMessageConstant.USER_UNAUTHORIZED_EXCEPTION);
+				} else {
+					throw new UserUnAuthorizedException(ErrorMessage.USER_UNAUTHORIZED_EXCEPTION);
 				}
-			}else {
-				throw new UserNotExistToPerformOperationException(ErrorMessageConstant.USER_NOT_EXIST_FOR_OPERATION);
+			} else {
+				throw new UserNotExistToPerformOperationException(ErrorMessage.USER_NOT_EXIST_FOR_OPERATION);
 			}
-			default:
-				throw new RoleException(ErrorMessageConstant.USER_ALREADY_EXIST);
+		default:
+			throw new RoleException(ErrorMessage.USER_ALREADY_EXIST);
 		}
-		Optional<User> userbyEmail = userRepo.findByEmailId(user.getEmailId().toUpperCase());
-		if(!userbyEmail.isPresent()) {
-			return userRepo.save(user);
+		Optional<UserEntity> userbyEmail = userRepo.findByEmailIdIgnoreCase(user.getEmailId().toUpperCase());
+		if (!userbyEmail.isPresent()) {
+			user = userRepo.save(user);
+			URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
+					.buildAndExpand(user.getUserId()).toUri();
+
+			return ResponseEntity.created(location).build();
 		}
-		throw new UserAlreadyExistException(ErrorMessageConstant.USER_ALREADY_EXIST);
-	}
-	
-	public List<User> getUsers(){
-		return userRepo.findAll();
-	}
-	
-	public Optional<User> getUser (Long Id, Long userId) {
-		if(Id != null) {
-		 Optional<User> user = userRepo.findById(Id);
-			if(user.isPresent()) {
-				if(user.get().getRoleId() != RoleConstant.CUSTOMER )
-				{
-					Optional<User> adminUser = userRepo.findById(userId);
-					if(adminUser.isPresent() && adminUser.get().getRoleId() != RoleConstant.CUSTOMER) {
-						return user;
-					}
-					else {
-						throw new UserUnAuthorizedException(ErrorMessageConstant.USER_UNAUTHORIZED_EXCEPTION);
-					}
-				}
-				return user;
-			}
-		}
-		throw new UserNotFoundException(ErrorMessageConstant.USER_NOT_FOUND);
+		throw new UserAlreadyExistException(ErrorMessage.USER_ALREADY_EXIST);
 	}
 
-	public List<User> getUserByName(String name) {
-		return userRepo.findByFirstName(name);
+	public List<UserEntity> getUsers(Long userId) {
+		int userRole = getUserRole(userId);
+		if (userRole == Role.RETAIL_ADMIN || userRole == Role.STORE_ADMIN) {
+			return userRepo.findAll();
+		}
+		throw new UserUnAuthorizedException("User is not authorized for this operation");
 	}
-	
-	public Optional<User> getUserByEmailId(String emailId){
-		if(emailId !=null) {
-			Optional<User> user = userRepo.findByEmailId(emailId.toUpperCase());
-			if(user.isPresent()) {
-				return user;
-			}else {
-				throw new UserNotFoundException(ErrorMessageConstant.USER_NOT_FOUND);
+
+	public Optional<UserEntity> getUser(Long Id, Long userId) {
+		if (Id != null) {
+			Optional<UserEntity> userEntity = userRepo.findById(Id);
+			if (userEntity.isPresent()) {
+				if (userEntity.get().getRoleId() != Role.CUSTOMER) {
+					Optional<UserEntity> adminUser = userRepo.findById(userId);
+					if (adminUser.isPresent() && adminUser.get().getRoleId() != Role.CUSTOMER) {
+						return userEntity;
+					} else {
+						throw new UserUnAuthorizedException(ErrorMessage.USER_UNAUTHORIZED_EXCEPTION);
+					}
+				}
+				return userEntity;
 			}
 		}
-		throw new UserDataException(ErrorMessageConstant.INVALID_USER_DATA);
+		throw new UserNotFoundException(ErrorMessage.USER_NOT_FOUND);
+	}
+
+	public UserEntity getUserByEmailId(String emailId) {
+		if (emailId != null) {
+
+			return userRepo.findByEmailIdIgnoreCase(emailId)
+					.orElseThrow(() -> new UserNotFoundException(ErrorMessage.USER_NOT_FOUND));
+		}
+		throw new UserDataException(ErrorMessage.INVALID_USER_DATA);
 	}
 
 	public void deleteUserById(Long id) {
-		if(id !=null) {
-			Optional<User> user = userRepo.findById(id);
-			if(user.isPresent()) {
+		if (id != null) {
+			Optional<UserEntity> user = userRepo.findById(id);
+			if (user.isPresent()) {
 				userRepo.deleteById(id);
-			}else
-			{
-				throw new UserNotFoundException(ErrorMessageConstant.USER_NOT_FOUND);
+			} else {
+				throw new UserNotFoundException(ErrorMessage.USER_NOT_FOUND);
 			}
 		}
-	}
-	
-	public void deleteUserByEmailId(String emailId, Long userId) {
-		if(userId !=null && emailId != null) {
-			Optional<User> user = userRepo.findByEmailId(emailId);
-			if(user.isPresent() && user.get().getUserId() == userId) {				
-				userRepo.deleteByEmailId(emailId.toUpperCase());
-			}else {
-				throw new UserDataException("User Data Invalid to delete");
-			}
-		}else
-		{
-			throw new UserDataException(ErrorMessageConstant.INVALID_USER_DATA);
-		}
-	}
-	
-	public int getUserRole(Long userId) {
-		System.out.println("user Id:  ----------"+userId);
-		if(userId != null) {
-			Optional<User> user = userRepo.findById(userId);
-			if(user.isPresent()) {
-				return user.get().getRoleId();
-			}	
-		}
-		throw new UserNotFoundException(ErrorMessageConstant.USER_NOT_FOUND);
 	}
 
-	public boolean isStoreAdmin(Long userId,Long storeId) {
-		if(userId !=null && storeId != null) {
-			Optional<User> user = userRepo.findByUserIdAndStoreId(userId,storeId);
+	public void deleteUserByEmailId(String emailId, Long userId) {
+		if (userId != null && emailId != null) {
+			Optional<UserEntity> user = userRepo.findByEmailId(emailId);
+			if (user.isPresent() && user.get().getUserId() == userId) {
+				userRepo.deleteByEmailIdIgnoreCase(emailId.toUpperCase());
+			} else {
+				throw new UserDataException("User Data Invalid to delete");
+			}
+		} else {
+			throw new UserDataException(ErrorMessage.INVALID_USER_DATA);
+		}
+	}
+
+	public int getUserRole(Long userId) {
+		if (userId != null) {
+			Optional<UserEntity> user = userRepo.findById(userId);
+			if (user.isPresent()) {
+				return user.get().getRoleId();
+			}
+		}
+		throw new UserNotFoundException(ErrorMessage.USER_NOT_FOUND);
+	}
+
+	public boolean isStoreAdmin(Long userId, Long storeId) {
+		if (userId != null && storeId != null) {
+			Optional<UserEntity> user = userRepo.findByUserIdAndStoreId(userId, storeId);
 			return user.isPresent();
 		}
-		throw new UserDataException(ErrorMessageConstant.INVALID_USER_DATA);
+		throw new UserDataException(ErrorMessage.INVALID_USER_DATA);
 	}
 
 	public boolean isUserExist(Long userId, String emailId) {
-		Optional<User> user = userRepo.findByUserIdAndEmailId(userId, emailId);
+		Optional<UserEntity> user = userRepo.findByUserIdAndEmailIdIgnoreCase(userId, emailId);
 		return user.isPresent();
 	}
 
-	public User updateUserData(@Valid User user) {
-		return userRepo.save(user);
+	public UserEntity updateUserData(@Valid UserEntity user, Long userId) {
+		if (isUserExist(userId, user.getEmailId())) {
+			user.setUserId(userId);
+			return userRepo.save(user);
+		}
+		throw new UserNotFoundException("User not found with these details");
 	}
 
 	public boolean isUserExist(@NotNull Long userId) {
-		System.out.println("userId: "+userId);
-		Optional<User> user = userRepo.findById(userId);
+		System.out.println("userId: " + userId);
+		Optional<UserEntity> user = userRepo.findById(userId);
 		return user.isPresent();
-		
+
 	}
 
 	public boolean isUserStoreAdmin(Long storeId, Long userId) {
-		Optional<User> user = userRepo.findByUserIdIdAndStoreIdAndRoleId(userId,storeId,2);
-		
+		Optional<UserEntity> user = userRepo.findByUserIdIdAndStoreIdAndRoleId(userId, storeId, Role.RETAIL_ADMIN);
+
 		return user.isPresent();
 	}
-	
+
 }
