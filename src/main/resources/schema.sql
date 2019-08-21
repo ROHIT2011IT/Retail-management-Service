@@ -1,0 +1,1 @@
+create table Role (role_id int, role varchar(50));
